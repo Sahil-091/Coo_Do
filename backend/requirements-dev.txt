@@ -1,0 +1,5 @@
+# Shared dev/test/lint tooling across all services (not shipped in prod images)
+pytest==9.1.1
+httpx==0.28.1
+ruff==0.16.4
+mypy==2.3.1

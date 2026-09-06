@@ -1,0 +1,90 @@
+name: campus-connect
+
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: devpassword
+      POSTGRES_DB: campus_connect
+    ports:
+      - "5432:5432"
+    volumes:
+      - campus_connect_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # One-off: runs `alembic upgrade head` then applies db/grants.sql, then
+  # exits. Run again any time migrations change — it's idempotent.
+  # Uses a SUPERUSER connection on purpose (see db/apply_grants.py); every
+  # other service below connects with its own least-privilege role instead.
+  migrate:
+    build:
+      context: ./backend
+      dockerfile: db/Dockerfile
+    environment:
+      DATABASE_URL: postgresql://postgres:devpassword@postgres/campus_connect
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  core-api:
+    build:
+      context: ./backend
+      dockerfile: services/core-api/Dockerfile
+    environment:
+      DATABASE_URL: postgresql+psycopg2://app_core_api:change_me_core_api@postgres/campus_connect
+      INTERNAL_SHARED_SECRET: devsecret123
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+
+  safety-service:
+    build:
+      context: ./backend
+      dockerfile: services/safety-service/Dockerfile
+    environment:
+      DATABASE_URL: postgresql+psycopg2://app_safety_service:change_me_safety_service@postgres/campus_connect
+    ports:
+      - "8001:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+
+  matching-service:
+    build:
+      context: ./backend
+      dockerfile: services/matching-service/Dockerfile
+    ports:
+      - "8002:8000"
+
+  moderation-service:
+    build:
+      context: ./backend
+      dockerfile: services/moderation-service/Dockerfile
+    ports:
+      - "8003:8000"
+
+  notification-service:
+    build:
+      context: ./backend
+      dockerfile: services/notification-service/Dockerfile
+    ports:
+      - "8004:8000"
+
+volumes:
+  campus_connect_pgdata:
+
+# Frontend is NOT containerized here on purpose (Phase 0 scope) — run it
+# with `npm run dev` inside frontend/ against these services' ports. See
+# root README. Phase 13 (PWA hardening & deployment) is where we'd
+# revisit whether the frontend gets its own Dockerfile for staging/prod.

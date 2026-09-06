@@ -1,0 +1,113 @@
+@import "tailwindcss";
+@import "@fontsource-variable/karla/wght.css";
+@import "@fontsource-variable/fraunces/soft.css";
+
+/*
+ * Design tokens — see /DESIGN.md for the full rationale (palette names,
+ * contrast verification, typography pairing, signature element).
+ * Every color pair below was checked against WCAG AA with
+ * /home/claude/contrast_check.py before being committed here — do not
+ * hand-tweak a hex value without re-running that check.
+ */
+:root {
+  /* Surfaces */
+  --color-paper: #f3eee3;
+  --color-paper-raised: #faf7f0;
+
+  /* Text */
+  --color-ink: #2b2a27;
+  --color-ink-muted: #6e6759;
+
+  /* Borders */
+  --color-border: #8c867a; /* functional: input outlines, focus-adjacent — >=3:1 (WCAG 1.4.11) */
+  --color-border-subtle: #e2dacb; /* decorative dividers only — never load-bearing for perception */
+
+  /* Accents — "lamp" is the one signature color; used deliberately and not
+     scattered everywhere (see DESIGN.md "signature element"). */
+  --color-lamp: #8f6427;
+  --color-lamp-tint: #efe4cf; /* soft wash for active-state backgrounds, ink text on top */
+  --color-moss: #4f6b52; /* secondary accent — progress/success, used sparingly */
+  --color-moss-tint: #e3ebe1;
+  --color-clay: #a1583f; /* muted error/warning — deliberately NOT alarm-red */
+  --color-clay-tint: #f2e2dc;
+}
+
+@theme inline {
+  --color-paper: var(--color-paper);
+  --color-paper-raised: var(--color-paper-raised);
+  --color-ink: var(--color-ink);
+  --color-ink-muted: var(--color-ink-muted);
+  --color-border: var(--color-border);
+  --color-border-subtle: var(--color-border-subtle);
+  --color-lamp: var(--color-lamp);
+  --color-lamp-tint: var(--color-lamp-tint);
+  --color-moss: var(--color-moss);
+  --color-moss-tint: var(--color-moss-tint);
+  --color-clay: var(--color-clay);
+  --color-clay-tint: var(--color-clay-tint);
+
+  --font-sans: "Karla Variable", ui-sans-serif, system-ui, -apple-system,
+    "Segoe UI", Roboto, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", "Cascadia Code", Consolas, monospace;
+
+  /* Semantic radius scale — deliberately moderate: soft enough to feel
+     human, not so rounded it reads bouncy/childish, not zero-radius
+     (which reads clinical/newspaper). See DESIGN.md. */
+  --radius-sm: 0.375rem; /* 6px  — chips, small badges */
+  --radius-md: 0.625rem; /* 10px — buttons, inputs */
+  --radius-lg: 1rem; /* 16px — cards, panels */
+  --radius-xl: 1.5rem; /* 24px — sheets/modals */
+}
+
+/* Display face — Fraunces, used with restraint (headings + empty-state
+   copy only, never body text). Dialed toward its SOFT axis for warmth,
+   a mid-high optical size for headline character, WONK off (kept
+   conventional rather than quirky — this is a support product, not a
+   playful one). */
+.font-display {
+  font-family: "Fraunces Variable", ui-serif, Georgia, serif;
+  font-variation-settings:
+    "opsz" 32,
+    "SOFT" 60,
+    "WONK" 0;
+  letter-spacing: -0.01em;
+}
+
+* {
+  border-color: var(--color-border-subtle);
+}
+
+html {
+  color-scheme: light;
+}
+
+body {
+  background: var(--color-paper);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+}
+
+/* Visible keyboard focus everywhere — never suppressed. Uses the lamp
+   accent so focus states reinforce the same signature color as the
+   active-nav treatment, rather than a generic browser blue. */
+:focus-visible {
+  outline: 2px solid var(--color-lamp);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+::selection {
+  background: var(--color-lamp-tint);
+  color: var(--color-ink);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
