@@ -29,6 +29,7 @@ export function TinyActionFlow({
   const [rungIndex, setRungIndex] = useState(() => defaultRungIndex(initialLadder));
   const [view, setView] = useState<ViewState>({ kind: "ladder" });
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [isPending, startTransition] = useTransition();
 
   const current = ladder[rungIndex];
@@ -39,25 +40,30 @@ export function TinyActionFlow({
     setRungIndex((i) => Math.min(i + 1, ladder.length - 1));
   }
 
-  function handleSmaller() {
+  async function handleSmaller() {
     setErrorMessage(null);
-    startTransition(async () => {
+    setIsSubmitting(true);
+
+    try {
       const result = await logAttemptAction(current.id, "reduced", checkinId);
+
       if ("error" in result) {
         setErrorMessage(result.error);
         return;
       }
+
       if (atFloor) {
-        // This IS "I couldn't do it, even this" — the required safety
-        // check (R&D doc Section 5.3) lives entirely server-side; here
-        // we just render whatever it decided.
-        setView({ kind: "floor_acknowledged", showSupportNudge: result.showSupportNudge });
+        setView({
+          kind: "floor_acknowledged",
+          showSupportNudge: result.showSupportNudge,
+        });
       } else {
         setRungIndex((i) => i - 1);
       }
-    });
+    } finally {
+      setIsSubmitting(false);
+    }
   }
-
   function handleComplete() {
     setErrorMessage(null);
     startTransition(async () => {
@@ -121,12 +127,12 @@ export function TinyActionFlow({
 
       <div className="flex flex-wrap gap-2">
         {!atCeiling && (
-          <Button type="button" variant="secondary" size="sm" onClick={handleBigger} disabled={isPending}>
+          <Button type="button" variant="secondary" size="sm" onClick={handleBigger} disabled={isSubmitting}>
             Make it bigger
           </Button>
         )}
         {!atFloor && (
-          <Button type="button" variant="secondary" size="sm" onClick={handleSmaller} disabled={isPending}>
+          <Button type="button" variant="secondary" size="sm" onClick={handleSmaller} disabled={isSubmitting}>
             Make it smaller
           </Button>
         )}
