@@ -6,11 +6,15 @@ on:
   pull_request:
 
 jobs:
-  frontend:
+    frontend:
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: frontend
+    env:
+      SESSION_SECRET: ${{ secrets.SESSION_SECRET }}
+      INTERNAL_SHARED_SECRET: ${{ secrets.INTERNAL_SHARED_SECRET }}
+      CORE_API_INTERNAL_URL: ${{ secrets.CORE_API_INTERNAL_URL }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
