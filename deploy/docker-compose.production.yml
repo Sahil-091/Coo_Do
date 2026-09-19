@@ -1,0 +1,129 @@
+# A production host runs this behind a TLS reverse proxy that exposes only the
+# frontend. Keep .env on the host (chmod 600), never in the repository.
+name: campus-connect
+
+x-service-defaults: &service-defaults
+  restart: unless-stopped
+  networks: [internal]
+
+services:
+  postgres:
+    image: postgres:16
+    <<: *service-defaults
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?required}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?required}
+      POSTGRES_DB: ${POSTGRES_DB:?required}
+    volumes: [postgres-data:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  migrate:
+    image: ${IMAGE_REPOSITORY:?required}/migrate:${IMAGE_TAG:?required}
+    networks: [internal]
+    restart: "no"
+    environment:
+      DATABASE_URL: ${DATABASE_ADMIN_URL:?required}
+      APP_CORE_API_DB_PASSWORD: ${APP_CORE_API_DB_PASSWORD:?required}
+      APP_SAFETY_SERVICE_DB_PASSWORD: ${APP_SAFETY_SERVICE_DB_PASSWORD:?required}
+      APP_SAFETY_REVIEWER_DB_PASSWORD: ${APP_SAFETY_REVIEWER_DB_PASSWORD:?required}
+      APP_MATCHING_SERVICE_DB_PASSWORD: ${APP_MATCHING_SERVICE_DB_PASSWORD:?required}
+      APP_MODERATION_SERVICE_DB_PASSWORD: ${APP_MODERATION_SERVICE_DB_PASSWORD:?required}
+      APP_MODERATION_REVIEWER_DB_PASSWORD: ${APP_MODERATION_REVIEWER_DB_PASSWORD:?required}
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  core-api:
+    image: ${IMAGE_REPOSITORY:?required}/core-api:${IMAGE_TAG:?required}
+    <<: *service-defaults
+    environment:
+      DATABASE_URL: postgresql+psycopg2://app_core_api:${APP_CORE_API_DB_PASSWORD:?required}@postgres/${POSTGRES_DB:?required}
+      INTERNAL_SHARED_SECRET: ${INTERNAL_SHARED_SECRET:?required}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.5-flash}
+      JOURNAL_ENCRYPTION_KEYS: ${JOURNAL_ENCRYPTION_KEYS:?required}
+      TRUSTED_CONTACT_ENCRYPTION_KEYS: ${TRUSTED_CONTACT_ENCRYPTION_KEYS:?required}
+      MODERATION_SERVICE_INTERNAL_URL: http://moderation-service:8000
+      NOTIFICATION_SERVICE_INTERNAL_URL: http://notification-service:8000
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  safety-service:
+    image: ${IMAGE_REPOSITORY:?required}/safety-service:${IMAGE_TAG:?required}
+    <<: *service-defaults
+    environment:
+      DATABASE_URL: postgresql+psycopg2://app_safety_service:${APP_SAFETY_SERVICE_DB_PASSWORD:?required}@postgres/${POSTGRES_DB:?required}
+      REVIEWER_DATABASE_URL: postgresql+psycopg2://app_safety_reviewer:${APP_SAFETY_REVIEWER_DB_PASSWORD:?required}@postgres/${POSTGRES_DB:?required}
+      INTERNAL_SHARED_SECRET: ${INTERNAL_SHARED_SECRET:?required}
+      SAFETY_REVIEWER_TOKEN: ${SAFETY_REVIEWER_TOKEN:?required}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.5-flash}
+      SAFETY_RESOURCES_FILE: /app/config/crisis_resources.india.json
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  matching-service:
+    image: ${IMAGE_REPOSITORY:?required}/matching-service:${IMAGE_TAG:?required}
+    <<: *service-defaults
+    environment:
+      DATABASE_URL: postgresql+psycopg2://app_matching_service:${APP_MATCHING_SERVICE_DB_PASSWORD:?required}@postgres/${POSTGRES_DB:?required}
+      INTERNAL_SHARED_SECRET: ${INTERNAL_SHARED_SECRET:?required}
+      CORE_API_INTERNAL_URL: http://core-api:8000
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  moderation-service:
+    image: ${IMAGE_REPOSITORY:?required}/moderation-service:${IMAGE_TAG:?required}
+    <<: *service-defaults
+    environment:
+      DATABASE_URL: postgresql+psycopg2://app_moderation_service:${APP_MODERATION_SERVICE_DB_PASSWORD:?required}@postgres/${POSTGRES_DB:?required}
+      REVIEWER_DATABASE_URL: postgresql+psycopg2://app_moderation_reviewer:${APP_MODERATION_REVIEWER_DB_PASSWORD:?required}@postgres/${POSTGRES_DB:?required}
+      INTERNAL_SHARED_SECRET: ${INTERNAL_SHARED_SECRET:?required}
+      MODERATION_REVIEWER_TOKEN: ${MODERATION_REVIEWER_TOKEN:?required}
+      CORE_API_INTERNAL_URL: http://core-api:8000
+      SAFETY_SERVICE_INTERNAL_URL: http://safety-service:8000
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  notification-service:
+    image: ${IMAGE_REPOSITORY:?required}/notification-service:${IMAGE_TAG:?required}
+    <<: *service-defaults
+    environment:
+      INTERNAL_SHARED_SECRET: ${INTERNAL_SHARED_SECRET:?required}
+
+  frontend:
+    image: ${IMAGE_REPOSITORY:?required}/frontend:${IMAGE_TAG:?required}
+    <<: *service-defaults
+    ports: ["127.0.0.1:3000:3000"]
+    environment:
+      DEPLOYMENT_VERSION: ${IMAGE_TAG:?required}
+      NEXT_SERVER_ACTIONS_ENCRYPTION_KEY: ${NEXT_SERVER_ACTIONS_ENCRYPTION_KEY:?required}
+      SESSION_SECRET: ${SESSION_SECRET:?required}
+      INTERNAL_SHARED_SECRET: ${INTERNAL_SHARED_SECRET:?required}
+      CORE_API_INTERNAL_URL: http://core-api:8000
+      MATCHING_SERVICE_INTERNAL_URL: http://matching-service:8000
+      MODERATION_SERVICE_INTERNAL_URL: http://moderation-service:8000
+      SAFETY_SERVICE_INTERNAL_URL: http://safety-service:8000
+      SAFETY_REVIEWER_TOKEN: ${SAFETY_REVIEWER_TOKEN:?required}
+      SAFETY_REVIEWER_EMAILS: ${SAFETY_REVIEWER_EMAILS:-}
+      MODERATION_REVIEWER_TOKEN: ${MODERATION_REVIEWER_TOKEN:?required}
+      MODERATION_REVIEWER_EMAILS: ${MODERATION_REVIEWER_EMAILS:-}
+      PROFESSIONAL_HELP_EDITOR_EMAILS: ${PROFESSIONAL_HELP_EDITOR_EMAILS:-}
+    depends_on:
+      core-api:
+        condition: service_started
+
+networks:
+  internal:
+    driver: bridge
+
+volumes:
+  postgres-data:

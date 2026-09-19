@@ -1,0 +1,126 @@
+name: campus-connect
+
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: devpassword
+      POSTGRES_DB: campus_connect
+    ports:
+      - "5432:5432"
+    volumes:
+      - campus_connect_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # One-off: runs `alembic upgrade head` then applies db/grants.sql, then
+  # exits. Run again any time migrations change — it's idempotent.
+  # Uses a SUPERUSER connection on purpose (see db/apply_grants.py); every
+  # other service below connects with its own least-privilege role instead.
+  migrate:
+    build:
+      context: ./backend
+      dockerfile: db/Dockerfile
+    environment:
+      DATABASE_URL: postgresql://postgres:devpassword@postgres/campus_connect
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  core-api:
+    build:
+      context: ./backend
+      dockerfile: services/core-api/Dockerfile
+    environment:
+      DATABASE_URL: postgresql+psycopg2://app_core_api:change_me_core_api@postgres/campus_connect
+      INTERNAL_SHARED_SECRET: ${INTERNAL_SHARED_SECRET:-dev-only-change-me}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.5-flash}
+      JOURNAL_ENCRYPTION_KEYS: ${JOURNAL_ENCRYPTION_KEYS:?Set a unique Fernet key before starting core-api}
+      TRUSTED_CONTACT_ENCRYPTION_KEYS: ${TRUSTED_CONTACT_ENCRYPTION_KEYS:?Set a unique Fernet key before starting core-api}
+      MODERATION_SERVICE_INTERNAL_URL: http://moderation-service:8000
+      NOTIFICATION_SERVICE_INTERNAL_URL: http://notification-service:8000
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+
+  safety-service:
+    build:
+      context: ./backend
+      dockerfile: services/safety-service/Dockerfile
+    environment:
+      DATABASE_URL: postgresql+psycopg2://app_safety_service:change_me_safety_service@postgres/campus_connect
+      REVIEWER_DATABASE_URL: postgresql+psycopg2://app_safety_reviewer:change_me_safety_reviewer@postgres/campus_connect
+      INTERNAL_SHARED_SECRET: ${INTERNAL_SHARED_SECRET:-dev-only-change-me}
+      SAFETY_REVIEWER_TOKEN: ${SAFETY_REVIEWER_TOKEN:-dev-only-reviewer-token-change-before-sharing}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.5-flash}
+      SAFETY_RESOURCES_FILE: /app/config/crisis_resources.india.json
+    ports:
+      - "8001:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+
+  matching-service:
+    build:
+      context: ./backend
+      dockerfile: services/matching-service/Dockerfile
+    environment:
+      DATABASE_URL: postgresql+psycopg2://app_matching_service:change_me_matching_service@postgres/campus_connect
+      INTERNAL_SHARED_SECRET: ${INTERNAL_SHARED_SECRET:-dev-only-change-me}
+      CORE_API_INTERNAL_URL: http://core-api:8000
+    ports:
+      - "8002:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+
+  moderation-service:
+    build:
+      context: ./backend
+      dockerfile: services/moderation-service/Dockerfile
+    environment:
+      DATABASE_URL: postgresql+psycopg2://app_moderation_service:change_me_moderation_service@postgres/campus_connect
+      REVIEWER_DATABASE_URL: postgresql+psycopg2://app_moderation_reviewer:change_me_moderation_reviewer@postgres/campus_connect
+      INTERNAL_SHARED_SECRET: ${INTERNAL_SHARED_SECRET:-dev-only-change-me}
+      MODERATION_REVIEWER_TOKEN: ${MODERATION_REVIEWER_TOKEN:-dev-only-moderation-reviewer-token-change-before-sharing}
+      CORE_API_INTERNAL_URL: http://core-api:8000
+      SAFETY_SERVICE_INTERNAL_URL: http://safety-service:8000
+    ports:
+      - "8003:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+
+  notification-service:
+    build:
+      context: ./backend
+      dockerfile: services/notification-service/Dockerfile
+    environment:
+      INTERNAL_SHARED_SECRET: ${INTERNAL_SHARED_SECRET:-dev-only-change-me}
+    ports:
+      - "8004:8000"
+
+
+volumes:
+  campus_connect_pgdata:
+
+# Frontend is NOT containerized here on purpose (Phase 0 scope) — run it
+# with `npm run dev` inside frontend/ against these services' ports. See
+# root README. Phase 13 (PWA hardening & deployment) is where we'd
+# revisit whether the frontend gets its own Dockerfile for staging/prod.

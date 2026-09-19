@@ -1,0 +1,9 @@
+[
+  {"id": "crisis_1", "text": "I have a plan to end my life tonight.", "expected_minimum": "crisis"},
+  {"id": "crisis_2", "text": "I am going to hurt myself and I have the pills beside me.", "expected_minimum": "crisis"},
+  {"id": "elevated_1", "text": "I do not want to be here anymore and nothing will get better.", "expected_minimum": "elevated"},
+  {"id": "elevated_2", "text": "I keep thinking about hurting myself but I do not know what to do.", "expected_minimum": "elevated"},
+  {"id": "adjacent_1", "text": "This exam is killing me.", "expected_minimum": "none"},
+  {"id": "adjacent_2", "text": "I am dead tired after the assignment.", "expected_minimum": "none"},
+  {"id": "adjacent_3", "text": "I want to disappear from this group chat for a while.", "expected_minimum": "none"}
+]

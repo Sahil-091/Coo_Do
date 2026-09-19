@@ -1,0 +1,43 @@
+"use client";
+
+import Link from "next/link";
+import { Flag, Handshake, ShieldBan, Sparkles } from "lucide-react";
+import { useState, useTransition } from "react";
+import { Button } from "@/components/ui/Button";
+import { blockMatchAction, reportMatchAction, requestMatchAction, updateMatchingProfileAction } from "./actions";
+import type { ActivityType, MatchCandidate, MatchingProfile, ReportCategory } from "./types";
+
+const ACTIVITY_TYPES: { value: ActivityType; label: string }[] = [
+  { value: "study", label: "Study alongside" }, { value: "coding", label: "Code alongside" },
+  { value: "reading", label: "Read alongside" }, { value: "writing", label: "Write alongside" },
+  { value: "quiet_work", label: "Quiet work" },
+];
+
+export function MatchingClient({ initialProfile, initialCandidates, isEnabled }: { initialProfile: MatchingProfile; initialCandidates: MatchCandidate[]; isEnabled: boolean }) {
+  const [profile, setProfile] = useState(initialProfile);
+  const [interestText, setInterestText] = useState(initialProfile.interests.join(", "));
+  const [candidates, setCandidates] = useState(initialCandidates);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [isPending, startTransition] = useTransition();
+  const hasSignal = Boolean(profile.course || profile.year || interestText.trim() || profile.activityTypes.length);
+
+  function toggleActivity(type: ActivityType) { setProfile((current) => ({ ...current, activityTypes: current.activityTypes.includes(type) ? current.activityTypes.filter((item) => item !== type) : [...current.activityTypes, type] })); }
+  function saveProfile() {
+    setNotice(null);
+    startTransition(async () => {
+      const result = await updateMatchingProfileAction({ ...profile, interests: interestText.split(",").map((item) => item.trim()).filter(Boolean) });
+      if ("error" in result) { setNotice(result.error); return; }
+      setProfile(result); setInterestText(result.interests.join(", "));
+      setNotice("Your matching signals are saved. Turn on matching in Settings when you’re ready to be discoverable.");
+    });
+  }
+  function connect(candidate: MatchCandidate) { startTransition(async () => { const result = await requestMatchAction(candidate.userId); setNotice(result.error ?? "Connection request sent. There’s no chat or contact-sharing here yet."); }); }
+  function hide(candidate: MatchCandidate) { startTransition(async () => { const result = await blockMatchAction(candidate.userId); if (result.error) { setNotice(result.error); return; } setCandidates((current) => current.filter((item) => item.userId !== candidate.userId)); setNotice("This profile is hidden. It will be excluded from future matching too."); }); }
+  function report(candidate: MatchCandidate, category: ReportCategory) { startTransition(async () => { const result = await reportMatchAction(candidate.userId, category); if (result.error) { setNotice(result.error); return; } setCandidates((current) => current.filter((item) => item.userId !== candidate.userId)); setNotice("Thanks. The profile is now excluded from your future matching."); }); }
+
+  return <div className="mx-auto max-w-3xl space-y-8 pb-8"><header><p className="text-sm font-semibold text-lamp">FIND SOMEONE LIKE ME</p><h1 className="mt-1 font-display text-3xl text-ink">A low-pressure place to find common ground</h1><p className="mt-3 max-w-2xl text-sm leading-6 text-ink-muted">This is for friendship and shared activities—not dating. Profiles are matched by the interests and study habits you choose, never photos or appearance.</p></header>
+    <section className="rounded-xl border border-border-subtle bg-paper-raised p-5" aria-labelledby="matching-signals"><div className="flex gap-3"><Sparkles className="mt-0.5 h-5 w-5 shrink-0 text-lamp" aria-hidden="true" /><div><h2 id="matching-signals" className="font-display text-xl text-ink">Your matching signals</h2><p className="mt-1 text-sm text-ink-muted">Region and language are private optional weights; no one can browse students by either.</p></div></div><div className="mt-5 grid gap-3 sm:grid-cols-2"><label className="text-sm font-medium text-ink">Course<input value={profile.course ?? ""} onChange={(event) => setProfile((current) => ({ ...current, course: event.target.value || null }))} maxLength={120} className="mt-1 block w-full rounded-md border border-border bg-white px-3 py-2" /></label><label className="text-sm font-medium text-ink">Year of study<input value={profile.year ?? ""} onChange={(event) => setProfile((current) => ({ ...current, year: event.target.value ? Number(event.target.value) : null }))} min={1} max={12} type="number" className="mt-1 block w-full rounded-md border border-border bg-white px-3 py-2" /></label><label className="text-sm font-medium text-ink sm:col-span-2">Interests, separated by commas<input value={interestText} onChange={(event) => setInterestText(event.target.value)} maxLength={500} placeholder="e.g. sketching, sci-fi, chess" className="mt-1 block w-full rounded-md border border-border bg-white px-3 py-2" /></label><label className="text-sm font-medium text-ink">Region (private)<input value={profile.region ?? ""} onChange={(event) => setProfile((current) => ({ ...current, region: event.target.value || null }))} maxLength={80} className="mt-1 block w-full rounded-md border border-border bg-white px-3 py-2" /></label><label className="text-sm font-medium text-ink">Language comfort (private)<input value={profile.language ?? ""} onChange={(event) => setProfile((current) => ({ ...current, language: event.target.value || null }))} maxLength={80} className="mt-1 block w-full rounded-md border border-border bg-white px-3 py-2" /></label></div><fieldset className="mt-5"><legend className="text-sm font-medium text-ink">Activities you enjoy</legend><div className="mt-3 grid gap-2 sm:grid-cols-2">{ACTIVITY_TYPES.map((item) => <label key={item.value} className="flex items-center gap-2 rounded-lg border border-border-subtle p-3 text-sm text-ink"><input type="checkbox" checked={profile.activityTypes.includes(item.value)} onChange={() => toggleActivity(item.value)} />{item.label}</label>)}</div></fieldset><Button onClick={saveProfile} disabled={isPending || !hasSignal} className="mt-5">Save matching signals</Button></section>
+    {!isEnabled && <aside className="rounded-xl border border-lamp/20 bg-lamp-tint p-4 text-sm leading-6 text-ink"><p className="font-semibold text-ink">Matching is off until you say otherwise.</p><p className="mt-1 text-ink-muted">To see or be shown matches, grant matching consent and turn on “Visible in matching.”</p><Link href="/settings" className="mt-2 inline-block font-semibold text-lamp underline">Review matching choices in Settings</Link></aside>}
+    {notice && <p role="status" className="rounded-lg border border-border-subtle bg-paper-raised p-3 text-sm text-ink">{notice}</p>}
+    {isEnabled && <section aria-labelledby="matches"><h2 id="matches" className="font-display text-2xl text-ink">Possible common ground</h2><p className="mt-1 text-sm text-ink-muted">No photos, romantic prompts, or appearance signals. You can hide or report anyone at any time.</p>{candidates.length === 0 ? <div className="mt-3 rounded-xl border border-dashed border-border bg-paper-raised p-6 text-sm text-ink-muted">No matches yet. Try adding a few interests or an activity style; new opted-in profiles can appear here later.</div> : <ul className="mt-3 space-y-3">{candidates.map((candidate) => <li key={candidate.userId} className="rounded-xl border border-border-subtle bg-paper-raised p-5"><div><h3 className="font-semibold text-ink">{candidate.displayName ?? "Another student"}</h3><p className="mt-1 text-sm text-ink-muted">{candidate.compatibilityReason}</p>{candidate.sharedInterests.length > 0 && <p className="mt-3 text-sm text-ink">Shared interests: {candidate.sharedInterests.join(", ")}</p>}{candidate.sharedActivityTypes.length > 0 && <p className="mt-1 text-sm text-ink">Shared activities: {candidate.sharedActivityTypes.map((item) => ACTIVITY_TYPES.find((activity) => activity.value === item)?.label).join(", ")}</p>}</div><div className="mt-4 flex flex-wrap gap-2"><Button size="sm" onClick={() => connect(candidate)} disabled={isPending}><Handshake className="h-4 w-4" aria-hidden="true" />Send connection request</Button><Button size="sm" variant="secondary" onClick={() => hide(candidate)} disabled={isPending}><ShieldBan className="h-4 w-4" aria-hidden="true" />Hide</Button><Button size="sm" variant="quiet-destructive" onClick={() => report(candidate, "dating_or_romantic_approach")} disabled={isPending}><Flag className="h-4 w-4" aria-hidden="true" />Report dating approach</Button></div></li>)}</ul>}</section>}</div>;
+}

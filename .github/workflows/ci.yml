@@ -1,0 +1,105 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm run test
+      - run: npm run build
+
+  backend:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        service:
+          - core-api
+          - safety-service
+          - matching-service
+          - moderation-service
+          - notification-service
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install shared dev tooling
+        run: pip install -r requirements-dev.txt
+
+      - name: Install service dependencies
+        run: pip install -r services/${{ matrix.service }}/requirements.txt
+
+      # core-api and safety-service also import the shared db/ package.
+      - name: Install db/ dependencies (core-api, safety-service only)
+        if: matrix.service == 'core-api' || matrix.service == 'safety-service'
+        run: pip install -r db/requirements.txt
+
+      - name: Lint (ruff)
+        run: ruff check services/${{ matrix.service }} db
+
+      - name: Test
+        env:
+          # Only core-api/safety-service actually read this; harmless for
+          # the other three since Phase 0 gives them no db-touching code.
+          PYTHONPATH: services/${{ matrix.service }}:.
+        run: pytest services/${{ matrix.service }}/tests -v
+
+  # Runs the real migration + grants against a throwaway Postgres service
+  # container, so a broken migration fails CI instead of surfacing in
+  # someone's local `docker-compose up`.
+  db-migration:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: devpassword
+          POSTGRES_DB: campus_connect
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+      - run: pip install -r db/requirements.txt
+      - name: Run migrations
+        env:
+          DATABASE_URL: postgresql+psycopg2://postgres:devpassword@localhost/campus_connect
+        run: alembic upgrade head
+      - name: Apply least-privilege grants
+        env:
+          DATABASE_URL: postgresql://postgres:devpassword@localhost/campus_connect
+        run: python db/apply_grants.py

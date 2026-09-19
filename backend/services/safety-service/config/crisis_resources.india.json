@@ -1,0 +1,9 @@
+{
+  "region": "India",
+  "emergency_note": "If you may be in immediate danger, call your local emergency number now.",
+  "resources": [
+    {"name": "Tele-MANAS", "phone": "14416 / 1-800-891-4416", "phone_uri": "tel:14416", "description": "24/7 mental health support."},
+    {"name": "KIRAN", "phone": "1800-599-0019", "phone_uri": "tel:18005990019", "description": "National mental health rehabilitation helpline."},
+    {"name": "Vandrevala Foundation", "phone": "1860-266-2345", "phone_uri": "tel:18602662345", "description": "Mental health support helpline."}
+  ]
+}

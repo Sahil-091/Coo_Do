@@ -1,0 +1,108 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Target environment
+        required: true
+        type: choice
+        options: [staging, production]
+      image_tag:
+        description: Immutable image tag to deploy (defaults to this commit SHA)
+        required: false
+        type: string
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    outputs:
+      image_tag: ${{ steps.deploy-tag.outputs.value }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: build-tag
+        run: echo "value=${{ github.sha }}" >> "$GITHUB_OUTPUT"
+      - id: deploy-tag
+        run: echo "value=${{ inputs.image_tag || github.sha }}" >> "$GITHUB_OUTPUT"
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
+        with:
+          context: frontend
+          push: true
+          tags: ghcr.io/${{ github.repository_owner }}/campus-connect/frontend:${{ steps.build-tag.outputs.value }}
+          build-args: |
+            DEPLOYMENT_VERSION=${{ steps.build-tag.outputs.value }}
+            NEXT_PUBLIC_CORE_API_URL=${{ vars.NEXT_PUBLIC_CORE_API_URL }}
+            NEXT_PUBLIC_SAFETY_SERVICE_URL=${{ vars.NEXT_PUBLIC_SAFETY_SERVICE_URL }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: backend
+          file: backend/services/core-api/Dockerfile
+          push: true
+          tags: ghcr.io/${{ github.repository_owner }}/campus-connect/core-api:${{ steps.build-tag.outputs.value }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: backend
+          file: backend/services/safety-service/Dockerfile
+          push: true
+          tags: ghcr.io/${{ github.repository_owner }}/campus-connect/safety-service:${{ steps.build-tag.outputs.value }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: backend
+          file: backend/services/matching-service/Dockerfile
+          push: true
+          tags: ghcr.io/${{ github.repository_owner }}/campus-connect/matching-service:${{ steps.build-tag.outputs.value }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: backend
+          file: backend/services/moderation-service/Dockerfile
+          push: true
+          tags: ghcr.io/${{ github.repository_owner }}/campus-connect/moderation-service:${{ steps.build-tag.outputs.value }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: backend
+          file: backend/services/notification-service/Dockerfile
+          push: true
+          tags: ghcr.io/${{ github.repository_owner }}/campus-connect/notification-service:${{ steps.build-tag.outputs.value }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: backend
+          file: backend/db/Dockerfile
+          push: true
+          tags: ghcr.io/${{ github.repository_owner }}/campus-connect/migrate:${{ steps.build-tag.outputs.value }}
+
+  deploy:
+    needs: publish
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    concurrency:
+      group: campus-connect-${{ inputs.environment }}
+      cancel-in-progress: false
+    steps:
+      - name: Configure verified SSH access
+        env:
+          DEPLOY_SSH_PRIVATE_KEY: ${{ secrets.DEPLOY_SSH_PRIVATE_KEY }}
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+        run: |
+          install -d -m 700 ~/.ssh
+          printf '%s' "$DEPLOY_SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
+      - name: Pull, migrate, and roll out the selected immutable release
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+          IMAGE_TAG: ${{ needs.publish.outputs.image_tag }}
+        run: |
+          ssh -i ~/.ssh/id_ed25519 "$DEPLOY_USER@$DEPLOY_HOST" "cd '$DEPLOY_PATH' && IMAGE_TAG='$IMAGE_TAG' docker compose --env-file .env -f docker-compose.production.yml pull && IMAGE_TAG='$IMAGE_TAG' docker compose --env-file .env -f docker-compose.production.yml up -d --wait --remove-orphans"
