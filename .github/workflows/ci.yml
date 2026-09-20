@@ -32,6 +32,22 @@ jobs:
 
   backend:
     runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: devpassword
+          POSTGRES_DB: campus_connect
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d campus_connect"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
     strategy:
       fail-fast: false
       matrix:
@@ -41,11 +57,14 @@ jobs:
           - matching-service
           - moderation-service
           - notification-service
+
     defaults:
       run:
         working-directory: backend
+
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -57,19 +76,23 @@ jobs:
       - name: Install service dependencies
         run: pip install -r services/${{ matrix.service }}/requirements.txt
 
-      # core-api and safety-service also import the shared db/ package.
-      - name: Install db/ dependencies (core-api, safety-service only)
+      - name: Install db dependencies
         if: matrix.service == 'core-api' || matrix.service == 'safety-service'
         run: pip install -r db/requirements.txt
+
+      - name: Run migrations
+        if: matrix.service == 'core-api' || matrix.service == 'safety-service'
+        env:
+          DATABASE_URL: postgresql+psycopg2://postgres:devpassword@localhost:5432/campus_connect
+        run: alembic upgrade head
 
       - name: Lint (ruff)
         run: ruff check services/${{ matrix.service }} db
 
       - name: Test
         env:
-          # Only core-api/safety-service actually read this; harmless for
-          # the other three since Phase 0 gives them no db-touching code.
           PYTHONPATH: services/${{ matrix.service }}:.
+          DATABASE_URL: postgresql+psycopg2://postgres:devpassword@localhost:5432/campus_connect
         run: pytest services/${{ matrix.service }}/tests -v
 
   # Runs the real migration + grants against a throwaway Postgres service
