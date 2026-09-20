@@ -22,7 +22,13 @@ jobs:
       - run: npm run lint
       - run: npm run typecheck
       - run: npm run test
-      - run: npm run build
+      # Next evaluates Server Components while collecting page data, so these
+      # server-only settings must exist even though CI does not call the APIs.
+      - name: Build
+        env:
+          SESSION_SECRET: ci-only-session-secret-that-is-at-least-32-characters
+          INTERNAL_SHARED_SECRET: ci-only-internal-shared-secret
+        run: npm run build
 
   backend:
     runs-on: ubuntu-latest
