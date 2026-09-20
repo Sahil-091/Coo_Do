@@ -24,8 +24,16 @@ def upgrade() -> None:
     op.create_table('data_requests',
     sa.Column('id', sa.UUID(), nullable=False),
     sa.Column('user_id', sa.UUID(), nullable=False),
-    sa.Column('request_type', sa.Enum('EXPORT', 'DELETION', name='data_request_type'), nullable=False),
-    sa.Column('status', sa.Enum('PENDING', 'COMPLETED', 'DENIED', name='data_request_status'), nullable=False),
+    sa.Column(
+    'request_type',
+    sa.Enum('export', 'deletion', name='data_request_type'),
+    nullable=False,
+),
+sa.Column(
+    'status',
+    sa.Enum('pending', 'completed', 'denied', name='data_request_status'),
+    nullable=False,
+),
     sa.Column('notes', sa.Text(), nullable=True),
     sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.Column('completed_at', sa.DateTime(timezone=True), nullable=True),
