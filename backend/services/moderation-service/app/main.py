@@ -12,7 +12,8 @@ from app.config import settings
 from app.db import get_db
 from app.internal_clients import DependencyUnavailable, account_created_at, screen_self_harm
 from app.schemas import (
-    GUIDELINES_VERSION,
+    ContentScreenRequest,
+    ContentScreenResponse,
     GuidelinesAcceptanceRequest,
     PostCreateRequest,
     PostResponse,
@@ -22,8 +23,6 @@ from app.schemas import (
     ReviewEventResponse,
     RoomCreateRequest,
     RoomResponse,
-    ContentScreenRequest,
-    ContentScreenResponse,
 )
 from app.security import verify_internal_secret, verify_reviewer_token
 from db.models.moderation import (
@@ -102,7 +101,8 @@ def screen_content(payload: ContentScreenRequest) -> ContentScreenResponse:
         raise HTTPException(status_code=503, detail=str(exc)) from None
     safety_level = str(safety.get("flag_level", "crisis"))
     reasons = classify_non_safety(payload.text)
-    if safety_level != "none": reasons.append("self_harm_or_crisis_language")
+    if safety_level != "none":
+        reasons.append("self_harm_or_crisis_language")
     return ContentScreenResponse(held=bool(reasons), reasons=reasons, safety_flag_level=safety_level)
 
 

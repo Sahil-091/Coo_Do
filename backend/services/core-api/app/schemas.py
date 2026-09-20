@@ -6,15 +6,17 @@ from urllib.parse import urlparse
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator, model_validator
 
 from app.checkin_rules import Feeling, Need, SuggestedPath, TimeOfDay
-from db.models.core import ConsentType, DataRequestStatus, DataRequestType
 from db.models.core import (
     ActivityStatus,
     ActivityTopic,
+    ConsentType,
+    DataRequestStatus,
+    DataRequestType,
+    MeetupCategory,
     PresenceFeedback,
+    RSVPStatus,
     TrustedContactRelationship,
     TrustedContactScenario,
-    MeetupCategory,
-    RSVPStatus,
 )
 
 MIN_PASSWORD_LENGTH = 8

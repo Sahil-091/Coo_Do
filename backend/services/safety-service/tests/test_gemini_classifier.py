@@ -1,5 +1,4 @@
 import pytest
-
 from app.gemini_classifier import ClassifierUnavailable, parse_flag_level
 
 

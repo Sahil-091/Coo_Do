@@ -6,7 +6,18 @@ Next.js's own server should ever call these, never the browser).
 """
 from fastapi import FastAPI
 
-from app.routers import activities, auth, checkins, journals, matching, meetups, professional_resources, tiny_actions, trusted_contacts, users
+from app.routers import (
+    activities,
+    auth,
+    checkins,
+    journals,
+    matching,
+    meetups,
+    professional_resources,
+    tiny_actions,
+    trusted_contacts,
+    users,
+)
 
 app = FastAPI(title="core-api", version="0.1.0")
 

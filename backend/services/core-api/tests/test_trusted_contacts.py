@@ -1,7 +1,7 @@
+from app.trusted_contact_crypto import build_trusted_contact_cipher
 from cryptography.fernet import Fernet
 from sqlalchemy import text
 
-from app.trusted_contact_crypto import build_trusted_contact_cipher
 from db.base import engine
 from tests.conftest import INTERNAL_SECRET_HEADERS
 

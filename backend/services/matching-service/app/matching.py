@@ -4,9 +4,8 @@ import uuid
 from sqlalchemy import UUID, and_, column, exists, or_, select, values
 from sqlalchemy.orm import Session
 
+from app.schemas import InternalCandidate, MatchCandidateResponse
 from db.models.matching import MatchBlock, MatchReport
-
-from app.schemas import ActivityType, InternalCandidate, MatchCandidateResponse
 
 
 def eligible_candidate_ids(

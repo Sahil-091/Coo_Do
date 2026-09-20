@@ -1,8 +1,7 @@
 import uuid
 
-from fastapi import WebSocketDisconnect
-
 from app.routers.activities import MAX_CREATED_PER_HOUR, MAX_JOIN_TOKENS_PER_HOUR, presence_manager
+from fastapi import WebSocketDisconnect
 
 from tests.conftest import INTERNAL_SECRET_HEADERS
 

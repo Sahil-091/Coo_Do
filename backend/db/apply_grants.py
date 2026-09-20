@@ -15,7 +15,6 @@ import os
 import psycopg2
 from psycopg2.extensions import adapt
 
-
 ROLE_PASSWORD_DEFAULTS = {
     "APP_CORE_API_DB_PASSWORD": "change_me_core_api",
     "APP_SAFETY_SERVICE_DB_PASSWORD": "change_me_safety_service",

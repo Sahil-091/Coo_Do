@@ -10,9 +10,26 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.db import get_db
-from app.schemas import ActivityMeetupCreateRequest, ActivityMeetupResponse, ActivityRSVPRequest, AreaPreferenceRequest, AreaPreferenceResponse, VenueResponse
+from app.schemas import (
+    ActivityMeetupCreateRequest,
+    ActivityMeetupResponse,
+    ActivityRSVPRequest,
+    AreaPreferenceRequest,
+    AreaPreferenceResponse,
+    VenueResponse,
+)
 from app.security import verify_internal_secret
-from db.models.core import ActivityAlertPreference, ActivityMeetup, ActivityRSVP, ConsentRecord, ConsentType, MeetupStatus, Profile, RSVPStatus, User
+from db.models.core import (
+    ActivityAlertPreference,
+    ActivityMeetup,
+    ActivityRSVP,
+    ConsentRecord,
+    ConsentType,
+    MeetupStatus,
+    Profile,
+    RSVPStatus,
+    User,
+)
 
 router = APIRouter(prefix="/internal/users", tags=["meetups"], dependencies=[Depends(verify_internal_secret)])
 
@@ -104,7 +121,8 @@ def _notify_eligible_users(db: Session, item: ActivityMeetup) -> None:
         if _consent_granted(db, preference.user_id)
         and _profile_matches_category(profile, item.category.value)
     ]
-    if not recipient_ids: return
+    if not recipient_ids:
+        return
     try:
         httpx.post(f"{settings.notification_service_internal_url}/internal/activity-alerts", headers={"X-Internal-Secret": settings.internal_shared_secret}, json={"recipient_ids": [str(item) for item in recipient_ids], "meetup_id": str(item.id), "category": item.category.value}, timeout=5.0).raise_for_status()
     except httpx.HTTPError:
@@ -115,14 +133,16 @@ def _notify_eligible_users(db: Session, item: ActivityMeetup) -> None:
 
 @router.get("/{user_id}/meetup-venues", response_model=list[VenueResponse])
 def venues(user_id: uuid.UUID, query: str = Query(default="", max_length=80), db: Session = Depends(get_db)):
-    if db.get(User, user_id) is None: raise HTTPException(status_code=404, detail="User not found.")
+    if db.get(User, user_id) is None:
+        raise HTTPException(status_code=404, detail="User not found.")
     needle = query.lower().strip()
     return [VenueResponse(id=key, name=value[0], category=value[1], map_url=value[3]) for key, value in PUBLIC_VENUES.items() if not needle or needle in value[0].lower()]
 
 
 @router.put("/{user_id}/activity-alert-preference", response_model=AreaPreferenceResponse)
 def set_alert_area(user_id: uuid.UUID, payload: AreaPreferenceRequest, db: Session = Depends(get_db)):
-    if db.get(User, user_id) is None: raise HTTPException(status_code=404, detail="User not found.")
+    if db.get(User, user_id) is None:
+        raise HTTPException(status_code=404, detail="User not found.")
     preference = db.query(ActivityAlertPreference).filter(ActivityAlertPreference.user_id == user_id).one_or_none()
     if not payload.enabled:
         # A user can clear their opt-in area without sending location again.
@@ -131,12 +151,22 @@ def set_alert_area(user_id: uuid.UUID, payload: AreaPreferenceRequest, db: Sessi
             db.delete(preference)
             db.commit()
         return AreaPreferenceResponse(enabled=False, has_area=False)
-    if not _consent_granted(db, user_id): raise HTTPException(status_code=409, detail="Grant activity-alert consent before enabling area alerts.")
+    if not _consent_granted(db, user_id):
+        raise HTTPException(
+            status_code=409,
+            detail="Grant activity-alert consent before enabling area alerts.",
+        )
     assert payload.latitude is not None and payload.longitude is not None
     if preference is None:
-        preference = ActivityAlertPreference(user_id=user_id, area_cell=_cell(payload.latitude, payload.longitude), enabled=payload.enabled); db.add(preference)
+        preference = ActivityAlertPreference(
+            user_id=user_id,
+            area_cell=_cell(payload.latitude, payload.longitude),
+            enabled=payload.enabled,
+        )
+        db.add(preference)
     else:
-        preference.area_cell = _cell(payload.latitude, payload.longitude); preference.enabled = payload.enabled
+        preference.area_cell = _cell(payload.latitude, payload.longitude)
+        preference.enabled = payload.enabled
     db.commit()
     return AreaPreferenceResponse(enabled=preference.enabled, has_area=True)
 
@@ -144,7 +174,8 @@ def set_alert_area(user_id: uuid.UUID, payload: AreaPreferenceRequest, db: Sessi
 @router.get("/{user_id}/meetups", response_model=list[ActivityMeetupResponse])
 def list_meetups(user_id: uuid.UUID, db: Session = Depends(get_db)):
     preference = db.query(ActivityAlertPreference).filter(ActivityAlertPreference.user_id == user_id, ActivityAlertPreference.enabled.is_(True)).one_or_none()
-    if preference is None: return []
+    if preference is None:
+        return []
     rows = db.query(ActivityMeetup).filter(ActivityMeetup.status == MeetupStatus.PUBLISHED, ActivityMeetup.area_cell == preference.area_cell, ActivityMeetup.starts_at >= datetime.now(UTC)).order_by(ActivityMeetup.starts_at).all()
     return [_response(db, item, user_id) for item in rows]
 
@@ -152,18 +183,34 @@ def list_meetups(user_id: uuid.UUID, db: Session = Depends(get_db)):
 @router.post("/{user_id}/meetups", response_model=ActivityMeetupResponse, status_code=status.HTTP_201_CREATED)
 def create_meetup(user_id: uuid.UUID, payload: ActivityMeetupCreateRequest, db: Session = Depends(get_db)):
     user = db.get(User, user_id)
-    if user is None: raise HTTPException(status_code=404, detail="User not found.")
-    if payload.venue_id not in PUBLIC_VENUES: raise HTTPException(status_code=422, detail="Choose a verified public venue from the venue lookup.")
-    if payload.starts_at <= datetime.now(UTC) + timedelta(minutes=30): raise HTTPException(status_code=422, detail="Choose a start time at least 30 minutes from now.")
+    if user is None:
+        raise HTTPException(status_code=404, detail="User not found.")
+    if payload.venue_id not in PUBLIC_VENUES:
+        raise HTTPException(
+            status_code=422,
+            detail="Choose a verified public venue from the venue lookup.",
+        )
+    if payload.starts_at <= datetime.now(UTC) + timedelta(minutes=30):
+        raise HTTPException(
+            status_code=422,
+            detail="Choose a start time at least 30 minutes from now.",
+        )
     is_new = datetime.now(UTC) - user.created_at < NEW_ACCOUNT_WINDOW
     limit = NEW_ACCOUNT_CREATION_LIMIT if is_new else ESTABLISHED_ACCOUNT_CREATION_LIMIT
     creation_window = NEW_ACCOUNT_CREATION_WINDOW if is_new else ESTABLISHED_ACCOUNT_CREATION_WINDOW
     recent = db.query(ActivityMeetup).filter(ActivityMeetup.creator_user_id == user_id, ActivityMeetup.created_at >= datetime.now(UTC) - creation_window).count()
-    if recent >= limit: raise HTTPException(status_code=429, detail="Activity creation limit reached. Try again tomorrow.")
+    if recent >= limit:
+        raise HTTPException(
+            status_code=429,
+            detail="Activity creation limit reached. Try again tomorrow.",
+        )
     _screen_or_reject(user_id, payload.title, payload.description)
     name, _kind, area_cell, map_url = PUBLIC_VENUES[payload.venue_id]
     item = ActivityMeetup(creator_user_id=user_id, title=payload.title.strip(), description=payload.description.strip(), category=payload.category, venue_provider_id=payload.venue_id, venue_name=name, venue_map_url=map_url, area_cell=area_cell, starts_at=payload.starts_at, max_participants=payload.max_participants)
-    db.add(item); db.commit(); db.refresh(item); _notify_eligible_users(db, item)
+    db.add(item)
+    db.commit()
+    db.refresh(item)
+    _notify_eligible_users(db, item)
     return _response(db, item, user_id)
 
 
@@ -172,10 +219,19 @@ def rsvp(user_id: uuid.UUID, meetup_id: uuid.UUID, payload: ActivityRSVPRequest,
     # Lock the event row while we count and write. Without it, two concurrent
     # Join requests could both observe the final open seat and overbook it.
     item = db.query(ActivityMeetup).filter(ActivityMeetup.id == meetup_id).with_for_update().one_or_none()
-    if item is None or item.status != MeetupStatus.PUBLISHED: raise HTTPException(status_code=404, detail="Activity not found.")
+    if item is None or item.status != MeetupStatus.PUBLISHED:
+        raise HTTPException(status_code=404, detail="Activity not found.")
     current = db.query(ActivityRSVP).filter(ActivityRSVP.activity_meetup_id == meetup_id, ActivityRSVP.user_id == user_id).one_or_none()
     joining = db.query(ActivityRSVP).filter(ActivityRSVP.activity_meetup_id == meetup_id, ActivityRSVP.status == RSVPStatus.JOINING).count()
-    if payload.status == RSVPStatus.JOINING and (current is None or current.status != RSVPStatus.JOINING) and joining >= item.max_participants: raise HTTPException(status_code=409, detail="This activity is full.")
-    if current is None: db.add(ActivityRSVP(activity_meetup_id=meetup_id, user_id=user_id, status=payload.status))
-    else: current.status = payload.status
-    db.commit(); return _response(db, item, user_id)
+    if (
+        payload.status == RSVPStatus.JOINING
+        and (current is None or current.status != RSVPStatus.JOINING)
+        and joining >= item.max_participants
+    ):
+        raise HTTPException(status_code=409, detail="This activity is full.")
+    if current is None:
+        db.add(ActivityRSVP(activity_meetup_id=meetup_id, user_id=user_id, status=payload.status))
+    else:
+        current.status = payload.status
+    db.commit()
+    return _response(db, item, user_id)

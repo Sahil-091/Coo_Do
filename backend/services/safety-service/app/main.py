@@ -9,8 +9,8 @@ from sqlalchemy import create_engine, select, update
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.config import settings
-from app.gemini_classifier import ClassifierUnavailable, PROMPT_VERSION, classify_text
-from app.resources import CrisisResource, load_resources
+from app.gemini_classifier import PROMPT_VERSION, ClassifierUnavailable, classify_text
+from app.resources import load_resources
 from app.support_scripts import SupportScript, script_for
 from db.base import SessionLocal
 from db.models.safety import EscalationStatus, SafetyEvent, SafetyFlagLevel, SafetySource

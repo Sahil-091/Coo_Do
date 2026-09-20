@@ -1,9 +1,9 @@
 from datetime import UTC, datetime, timedelta
 
-from fastapi import HTTPException
-
 from app.routers import meetups
 from app.routers.meetups import NEW_ACCOUNT_CREATION_LIMIT, NEW_ACCOUNT_CREATION_WINDOW
+from fastapi import HTTPException
+
 from db.base import SessionLocal
 from db.models.core import (
     ActivityAlertPreference,

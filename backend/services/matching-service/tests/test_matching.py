@@ -1,9 +1,8 @@
 import uuid
 
-from sqlalchemy.dialects import postgresql
-
 from app.matching import eligible_candidate_ids, rank_candidates
 from app.schemas import ActivityType, InternalCandidate
+from sqlalchemy.dialects import postgresql
 
 
 def _candidate(**overrides) -> InternalCandidate:

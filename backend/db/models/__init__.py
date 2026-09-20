@@ -7,21 +7,20 @@ from db.base import Base
 from db.models.core import (  # noqa: F401
     ActionAttempt,
     Activity,
-    ActivityParticipant,
-    ActivityMeetup,
-    ActivityRSVP,
     ActivityAlertPreference,
+    ActivityMeetup,
+    ActivityParticipant,
+    ActivityRSVP,
     CheckIn,
     ConsentRecord,
     DataRequest,
-    PrivacySettings,
     PresenceRoom,
-    TrustedContact,
+    PrivacySettings,
     Profile,
     TinyAction,
+    TrustedContact,
     User,
 )
-from db.models.safety import SafetyEvent  # noqa: F401
 from db.models.matching import Match, MatchBlock, MatchReport  # noqa: F401
 from db.models.moderation import (  # noqa: F401
     CommunityGuidelinesAcceptance,
@@ -30,6 +29,7 @@ from db.models.moderation import (  # noqa: F401
     CommunityRoom,
     ModerationEvent,
 )
+from db.models.safety import SafetyEvent  # noqa: F401
 
 __all__ = [
     "Base",

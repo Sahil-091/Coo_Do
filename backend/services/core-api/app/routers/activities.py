@@ -20,7 +20,12 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.db import get_db
-from app.schemas import ActivityCreateRequest, ActivityResponse, PresenceFeedbackRequest, PresenceTokenResponse
+from app.schemas import (
+    ActivityCreateRequest,
+    ActivityResponse,
+    PresenceFeedbackRequest,
+    PresenceTokenResponse,
+)
 from app.security import verify_internal_secret
 from db.models.core import Activity, ActivityParticipant, ActivityStatus, PresenceRoom, User
 
