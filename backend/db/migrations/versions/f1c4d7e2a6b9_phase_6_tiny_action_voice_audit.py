@@ -31,10 +31,10 @@ def upgrade() -> None:
     # ``create_type=False`` prevents ``create_table`` from trying to create
     # the same type a second time in this transaction.
     voice_outcome = postgresql.ENUM(
-        "ACCEPTED",
-        "REJECTED",
-        "UNAVAILABLE",
-        "REFUSED",
+        "accepted",
+        "rejected",
+        "unavailable",
+        "refused",
         name="tiny_action_voice_outcome",
         create_type=False,
     )
